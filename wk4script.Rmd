@@ -1,0 +1,78 @@
+---
+title: "hw4"
+output: html_document
+date: "2022-10-31"
+---
+
+Load libraries
+
+```{r}
+library(sf)
+library(dplyr)
+library(tidyverse)
+library(countrycode)
+library(tmap)
+```
+
+Read in gender inequality index data
+
+```{r}
+hdr <- read.csv("data/HDR21-22_Composite_indices_complete_time_series.csv",
+                na="")
+```
+
+select necessary columns
+```{r}
+gii_2010_2019 <- hdr %>% 
+  select(contains('iso3'), contains('gii_2010'),contains('gii_2019'))
+```
+
+clean data. make new column with difference between gii 2010 and 2019
+```{r}
+gii_2010_2019_diff <- gii_2010_2019 %>%
+  drop_na() %>% 
+  filter(!str_detect(`iso3`, '^ZZ')) %>% 
+  cbind(iso2 = countrycode(.$iso3, origin="iso3c", destination="iso2c"), .) %>%
+  subset(., select=-c(iso3)) %>% 
+  mutate(gii_diff = gii_2019 - gii_2010)
+  
+```
+
+read in world countries shapefile, summarise, and plot simplified version
+```{r}
+worldOutline <- st_read("data/World_Countries_(Generalized)/World_Countries__Generalized_.shp")
+
+summary(worldOutline)
+
+worldOutline %>%
+  st_simplify(., dTolerance = 1000) %>%
+  st_geometry()%>%
+  plot()
+```
+
+join gii data to world outline data on iso
+```{r}
+worldGII <- worldOutline %>% 
+  left_join(.,
+            gii_2010_2019_diff,
+            by=c("ISO"="iso2"))
+```
+
+plot
+```{r}
+tmap_mode("plot")
+
+tm_shape(worldGII) +
+tm_polygons("gii_diff", 
+        style="jenks",
+        palette="-YlGn", 
+        midpoint=NA,
+        title="Change in index", # title of legend
+        alpha = 0.5) + 
+  tm_compass(position = c("left", "bottom"),type = "arrow") + 
+  tm_scale_bar(position = c("left", "bottom")) +
+  tm_layout(title = "Change in Gender Inequality Index from 2010-2019", #title of map
+						legend.position = c("right", "bottom"))
+```
+
+
